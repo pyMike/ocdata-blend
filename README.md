@@ -1,4 +1,4 @@
-Finding common ground across different naming conventions / standards in open contracting data
+Finding common ground across different naming conventions / standards in open contracting data.
 
 
 ### Documentation
