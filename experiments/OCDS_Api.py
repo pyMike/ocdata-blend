@@ -145,7 +145,122 @@ def get_all_csv_links(json_dict):
     return get_links(json_dict,'format','CSV')
 #==============================================================================   
 
+#==============================================================================
+
+def get_filname_from_url(url):
+    """Rudamentary parsing of URL into a list and assumming last element is the filename """
+    filename = url.split('/')[-1]
+    #Futur Feature:
+    # - Check for valid filname
+    # - must handle this case:  and probably several more.
+    #   (31536000, 'https://online.contractsfinder.businesslink.gov.uk:443/PublicFileDownloadHandler.ashx?fileName=notices_2012_05.csv&recordType=Notices&fileContent=Monthly', 'PublicFileDownloadHandler.ashx?fileName=notices_2012_05.csv&recordType=Notices&fileContent=Monthly')
+    # - make functions to handle different cases like...def get_filename_from_content-disposition
+    # - run on all data and handle all cases.
+    return filename 
+#------------------------------------------------------------------------------
+
+def get_file_info(link, prn=True):
+    """Returns useful info regarding file to download i.e. Metadata
+    Getting metadata about one file from remote servers...
+    Purpose:  to get filename, filesize, URL & and http Instance info...
+    """
+    FILE_SIZE_FAILED = '999999999999'  
+
+    the_file = urllib2.urlopen( link )
+    #if chk_the_file  #xxx...implement later.
+    httpInstance = the_file.info()  #...can get length of file. 
+
+    if prn:    
+        print '\n--------------------httpInstance----------------------------------------------'
+        print httpInstance
+        print '----------------------httpInstance dictionary--------------------------------------------------------'
+        OCDS_Api.print_json_dict(httpInstance.dict)
+        print '----------------------httpInstance keys--------------------------------------------------------'
+        OCDS_Api.print_json_dict(httpInstance.keys())
+        print '----------------------httpInstance values--------------------------------------------------------'
+        OCDS_Api.print_json_dict(httpInstance.values())
+        print '------------------------------------------------------------------------------'
+
+    if 'Strict-Transport-Security' in httpInstance.keys():
+        fileSizeStr = httpInstance['Strict-Transport-Security'].split('max-age=')[1]  #xxx ...fails ofen why?
+    elif 'content-length' in httpInstance.dict:
+        fileSizeStr = httpInstance.dict['content-length']
+    else:
+        fileSizeStr = FILE_SIZE_FAILED   #...indicates failed extraction.
+    fileSize = int(fileSizeStr)
+    url = the_file.url
+    #if chk_url(url):  #xxx ...implement later.
+    filename = get_filname_from_url(url)
+    #if chk_filename  #xxx ...implement later.
+    
+    the_file.close()
+    #Future Features:
+    # - verify that the filesize is correct. Can be done once downloaded.
+    # - add expire date
+    # - add try except
+    # - check url & filename
+    return httpInstance.dict,(fileSize, url, filename )  #...should return struct, filename etc..
+#------------------------------------------------------------------------------
+
+def get_all_files_info(json_dict):
+    """ToDo:  Get info on all files i.e. extend/augment json_dict and return
+    augmented data structure to include added info/metadata about all files.
+ 
+    Purpose:  to allow users to select downloading files based on metadata.
+
+    Warnings:
+    1) filename extration is currently rudimentry. Please verify.
+       Upgrade soon to come.
+    2) FILE_SIZE_FAILED = '999999999999' or interger 999999999999
+
+    Example: of augmented resutl withing json_dict
+        Note: file_size, filename, http_dict and url have be added...
+            {
+            "dataset": "Buyandsell.gc.ca - Contract History",
+            "file_size": 24360369,
+            "filename": "tpsgc-pwgsc_co-ch_EF-FY-13-14.csv",
+            "format": "CSV",
+            "http_dict": {
+                "accept-ranges": "bytes",
+                "connection": "close",
+                "content-length": "24360369",
+                "content-type": "application/octet-stream",
+                "date": "Fri, 04 Jul 2014 16:42:38 GMT",
+                "last-modified": "Sun, 01 Jun 2014 14:52:41 GMT",
+                "server": "nginx",
+                "strict-transport-security": "max-age=31536000",
+                "x-frame-options": "SAMEORIGIN"
+            },
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/5/",
+            "notes": "",
+            "title": "Contract History - 2013-2014",
+            "url": "https://buyandsell.gc.ca/cds/public/contracts/tpsgc-pwgsc_co-ch_EF-FY-13-14.csv"
+        }
+    """    
+    results = json_dict['results']
+    for i,res in enumerate(results):
+        http_dict, file_info =  get_file_info(res['link'])
+        file_size, url, filename = file_info
+        #add http_dict field
+        res['http_dict'] = http_dict
+        res['file_size'] = file_size
+        res['url'] = url
+        res['filename'] = filename
+        results[i]= res
+    json_dict['results']=results
+    #Future Features:
+    # - caching:check if already downloaded, must include expery date check but can
+    #   also start by checking by filename &filesize.
+    # -
+    return json_dict
+
+#==============================================================================
+
+
+
+
 def use_cases():
+    FILE_SIZE_FAILED = '999999999999'
 
     #Examples: Use cases...
     json_dict_all      = get_json_dict()  #...gets all links from ocds api.
@@ -167,7 +282,20 @@ def use_cases():
     links4 = get_all_links(json_dict)     #...same as link1
     links5 = get_all_csv_links(json_dict) #...same as link2.
     #==========================================================================
-
+    #geting informatinon regarding one file...
+    http_info, file_info = get_file_info(links2[0])  #...gets augmented info regarding one file
+    print_json_dict(http_info) #... print http information collected from server
+    print_json_dict(file_info) #...prints file size, url & filename
+    #getting information of all files and augmenting json_dict...
+    json_dict_augmented = get_all_files_info(json_dict)  #...metadata all collected in one place.
+    print_json_dict(json_dict_augmented)
+    #==========================================================================
+    #Now one can search on augmented metadata...not the best use case example but...
+    links6 = get_links(json_dict_augmented, 'file_size', int(FILE_SIZE_FAILED)) #...lists all failed attemps
+    print 'Failed to obtain, file sizes for the following links...will have to investigate...' 
+    print_json_dict(links6)
+    #==========================================================================
+    
     return
 #----------------------------------------------------------------------------
 
@@ -177,4 +305,4 @@ def use_cases():
 # - unit testing? 
 #==============================================================================
 
-use_cases()
+#use_cases()
