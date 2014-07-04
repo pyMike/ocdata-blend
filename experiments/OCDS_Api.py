@@ -25,7 +25,52 @@ import json
 #Getting only csv links...Sarah configure Django server page size to 500...
 #ocds_api_url = 'http://ocds.open-contracting.org/opendatacomparison/api/links/f/csv?format=json' 
 #----------------------------------------------------------------------------
+"""Example: of data structure returned by server...with 5 results all CSVs...
 
+{
+    "count": 71,
+    "next": "http://ocds.open-contracting.org/opendatacomparison/api/links/f/csv?page=2&page_size=5",
+    "previous": null,
+    "results": [
+        {
+            "dataset": "Contracts Finder - All Notices",
+            "format": "CSV",
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/114/",
+            "notes": "",
+            "title": "Older Notices - January 2012"
+        },
+        {
+            "dataset": "Buyandsell.gc.ca - Tenders Data",
+            "format": "CSV",
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/11/",
+            "notes": "microsoft CSV vs CSV",
+            "title": "New today tender notices"
+        },
+        {
+            "dataset": "Contracts Finder - All Notices",
+            "format": "CSV",
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/80/",
+            "notes": "",
+            "title": "Older Notices - June 2013"
+        },
+        {
+            "dataset": "OpenTED - Contract Awards",
+            "format": "CSV",
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/215/",
+            "notes": "",
+            "title": "Contract Awards - 2012"
+        },
+        {
+            "dataset": "Buyandsell.gc.ca - Tenders Data",
+            "format": "CSV",
+            "link": "http://ocds.open-contracting.org/opendatacomparison/download/18/",
+            "notes": "",
+            "title": "Construction notices"
+        }
+    ]
+}
+"""
+#----------------------------------------------------------------------------
 def get_json_dict(ocds_api_url='http://ocds.open-contracting.org/opendatacomparison/api/links?'):
     """Gets metadata from opendatacomparison server"""        
     try:
@@ -74,7 +119,31 @@ def print_json_dict(json_dict):
     #Future Feature:
     # - print 3 results by default
     return
-#----------------------------------------------------------------------------
+#==============================================================================  
+
+def get_links(json_dict, key='', value='',prn=True): #, key='format', value='CSV'):
+    """Warning: Please Check your key value exists before calling.
+    if key='' (the default) then all links are return.""" 
+    results = json_dict["results"]
+    print len(results)
+    links = []
+    for (itemNum, item) in enumerate(results):
+       if (key=='') or (item[key] == value):
+           if prn:
+               print item['link']
+           links.append(item['link'])
+    if prn:
+        print "num of links = ",len(links)
+    return links
+#-------------------------------------------------------------------------
+
+def get_all_links(json_dict):
+    return get_links(json_dict)
+#-------------------------------------------------------------------------
+
+def get_all_csv_links(json_dict):
+    return get_links(json_dict,'format','CSV')
+#==============================================================================   
 
 def use_cases():
 
@@ -90,6 +159,15 @@ def use_cases():
     json_dict_20       = get_json_dict_select(20, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
     
     print_json_dict(json_dict_5_csvs)
+    #==========================================================================
+    links1 = get_links(json_dict)  #...gets all links by default 
+    links2 = get_links(json_dict, 'format', 'CSV')   #...gets all CSVs
+    links3 = get_links(json_dict, 'dataset', 'Contracts Finder - All Notices')
+
+    links4 = get_all_links(json_dict)     #...same as link1
+    links5 = get_all_csv_links(json_dict) #...same as link2.
+    #==========================================================================
+
     return
 #----------------------------------------------------------------------------
 
@@ -98,3 +176,5 @@ def use_cases():
 # - Note: the above code can be put into a class maybe called OCDS_Api
 # - unit testing? 
 #==============================================================================
+
+use_cases()
