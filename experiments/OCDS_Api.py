@@ -147,7 +147,7 @@ def get_all_csv_links(json_dict):
 
 #==============================================================================
 
-def get_filname_from_url(url):
+def get_filename_from_url(url):
     """Rudamentary parsing of URL into a list and assumming last element is the filename """
     filename = url.split('/')[-1]
     #Futur Feature:
@@ -174,11 +174,11 @@ def get_file_info(link, prn=True):
         print '\n--------------------httpInstance----------------------------------------------'
         print httpInstance
         print '----------------------httpInstance dictionary--------------------------------------------------------'
-        OCDS_Api.print_json_dict(httpInstance.dict)
+        print_json_dict(httpInstance.dict)
         print '----------------------httpInstance keys--------------------------------------------------------'
-        OCDS_Api.print_json_dict(httpInstance.keys())
+        print_json_dict(httpInstance.keys())
         print '----------------------httpInstance values--------------------------------------------------------'
-        OCDS_Api.print_json_dict(httpInstance.values())
+        print_json_dict(httpInstance.values())
         print '------------------------------------------------------------------------------'
 
     if 'Strict-Transport-Security' in httpInstance.keys():
@@ -190,7 +190,7 @@ def get_file_info(link, prn=True):
     fileSize = int(fileSizeStr)
     url = the_file.url
     #if chk_url(url):  #xxx ...implement later.
-    filename = get_filname_from_url(url)
+    filename = get_filename_from_url(url)
     #if chk_filename  #xxx ...implement later.
     
     the_file.close()
@@ -255,12 +255,86 @@ def get_all_files_info(json_dict):
     return json_dict
 
 #==============================================================================
+#==============================================================================
+def save_file(url, simulate=False):
+   """Downloads and Saves one file:"""
+   #Notes to self:
+   #getting the file contents...    
+   the_file = urllib2.urlopen(url)
+   url_redirect = the_file.url  #...note1: redirect from Django, Note2: same as the_file.geturl()
+   #Parse theUrl to get filename.
+   file_name = get_filename_from_url(url_redirect) 
 
+   file_info_dict,(file_size, url_redirect, file_name ) = get_file_info(url,False)
+   
+   #Download file in any format..
+   with open(file_name,'wb') as f:
+       print "----------------------------------------------------------------------------------------"
+       print "From: Django url......:", url
+       print "From: Redirect url....:", url_redirect
+       print "To: local directory...:", os.getcwd()
+       print "To: Filename..........:", file_name 
+       print "File size.............:", file_size, 'bytes'
+       print "Estimated download time at 1 megabit rate is", (file_size*8.0/1000000)/60, 'minutes'
+       print "----------------------------------------------------------------------------------------"
+       if not(simulate):
+           f.write(the_file.read()) #...xxx add a path here to write files.
+       else:
+           print "Simulation in progress: creating empty file in current directory"
+       f.close()
+   the_file.close()
+   #Future Features:
+   # - maybe call this "download_file" from url
+   #-  add path to local files
+   # - check if file has been downloaded ( file size, chksum etc)
+   # - return message regarding successful transfer, overwitten etc.
+   # - and try, except and handle specific conditions.
+   # - handle multiple downloads at higher level
+   # - verbose option
+   # - simulate download first option
+   # - estimate time to download
+   # - progress of download
+   # - can easily log or put into Dict or sqlight
+   return 
+#-----------------------------------------------------------------------------    
+def save_files(links, simulate=False):
+    """Downloads and saves files to local drive at current directory."""
+    for link in links:
+        save_file(link, simulate)
+    #Future Features:
+    # - add path to local drive
+    # - maybe rename to download_files
+    return
+#-----------------------------------------------------------------------------    
+
+def save_csvs_by_dataset(value="Contracts Finder - All Notices",num=5, simulate=False):
+    """Downloads and saves a specified number of CSV files selected on 
+    a specified dataset value.""" 
+    json_dict_all_csvs = get_json_dict('http://ocds.open-contracting.org/opendatacomparison/api/links/f/csv?')
+
+    print_json_dict(json_dict_all_csvs)
+    links = get_links(json_dict_all_csvs, 'dataset', value ) #...selecting links
+    print "links:  ", links
+    save_files(links, simulate)
+    #Future Feature:
+    # - value should be searched case insensitive.
+    # - value contains "all notices"
+    return 
+#-----------------------------------------------------------------------------    
+
+def save_csvs_limited_by_size(num=5, size=1000):
+    """Will implement next, similar to save_csvs_by_dataset"""
+    pass
+    #Future Features:
+    # - get some rest frist.
+    return    
+#-----------------------------------------------------------------------------    
 
 
 
 def use_cases():
     FILE_SIZE_FAILED = '999999999999'
+    simulate = True
 
     #Examples: Use cases...
     json_dict_all      = get_json_dict()  #...gets all links from ocds api.
@@ -274,7 +348,10 @@ def use_cases():
     json_dict_20       = get_json_dict_select(20, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
     
     print_json_dict(json_dict_5_csvs)
+
+    json_dict = json_dict_5_csvs
     #==========================================================================
+   
     links1 = get_links(json_dict)  #...gets all links by default 
     links2 = get_links(json_dict, 'format', 'CSV')   #...gets all CSVs
     links3 = get_links(json_dict, 'dataset', 'Contracts Finder - All Notices')
@@ -282,7 +359,7 @@ def use_cases():
     links4 = get_all_links(json_dict)     #...same as link1
     links5 = get_all_csv_links(json_dict) #...same as link2.
     #==========================================================================
-    #geting informatinon regarding one file...
+    #gathering more informatinon regarding one file...
     http_info, file_info = get_file_info(links2[0])  #...gets augmented info regarding one file
     print_json_dict(http_info) #... print http information collected from server
     print_json_dict(file_info) #...prints file size, url & filename
@@ -295,6 +372,27 @@ def use_cases():
     print 'Failed to obtain, file sizes for the following links...will have to investigate...' 
     print_json_dict(links6)
     #==========================================================================
+    print "Warning: this section downloads files into your current directory"
+    print " - you may want to simulate the download first but be advised that"
+    print "   empty files will be written to your current directory."
+    if True: #Example: of a specific save function 
+        save_csvs_by_dataset()  #...by default saves up to 5 csv files with dataset="Contracts Finder - All Notices"
+        save_csvs_by_dataset("Contracts Finder - All Notices")  #...does the same as above
+        save_csvs_by_dataset("Buyandsell.gc.ca - Tenders Data", 10, simulate==True) #... simulate saving up to 10 with dataset="Bsyandsell..."
+        save_csvs_by_dataset("Buyandsell.gc.ca - Tenders Data", 10)                 #...  saving up to 10 with dataset="Bsyandsell..."
+    
+    if True: #Example: of a general case: make any selection from source server...
+        json_dict   = get_json_dict()  #...gets all links from ocds api of any format.
+        #OR...
+        json_dict   = get_json_dict_select(500)  #...gets up to 500 csv links from ocds api.
+        
+        #Using the general get_links function:  make a second selection from json_dict metadata...
+        links = get_links(json_dict, 'dataset', "Contract Finder - All notices" ) 
+        links = get_links(json_dict, 'format', "CSV" ) 
+    
+        save_files(links, simulate==True) #... links are urls and True means simulate.
+        
+    print "Finished use_cases"
     
     return
 #----------------------------------------------------------------------------
