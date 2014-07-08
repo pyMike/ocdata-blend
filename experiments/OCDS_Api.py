@@ -13,6 +13,8 @@ import urllib2, urllib
 import simplejson
 import json
 
+FILE_SIZE_FAILED = 999999999999
+
 #----------------------------------------------------------------------------
 #Examples: of server http or https urls
 
@@ -70,6 +72,13 @@ import json
     ]
 }
 """
+
+def merge_json_dict( json_dict1, json_dict2):
+    results1 = json_dict1.get('results')
+    results2 = json_dict1.get('results')
+    return results1.extend(results2)
+    
+#==============================================================================
 #----------------------------------------------------------------------------
 def get_json_dict(ocds_api_url='http://ocds.open-contracting.org/opendatacomparison/api/links?'):
     """Gets metadata from opendatacomparison server"""        
@@ -128,6 +137,7 @@ def get_links(json_dict, key='', value='',prn=True): #, key='format', value='CSV
     print len(results)
     links = []
     for (itemNum, item) in enumerate(results):
+       print type(value),value, type(item[key]), item[key]  #...make sure both are same type.
        if (key=='') or (item[key] == value):
            if prn:
                print item['link']
@@ -144,19 +154,112 @@ def get_all_links(json_dict):
 def get_all_csv_links(json_dict):
     return get_links(json_dict,'format','CSV')
 #==============================================================================   
+def select_from_json_dict(json_dict, key='',value='',prn=True):
+    """Splits json_dict into two json_dicts by selecting in and out for the
+    specified matching key:value pairs"""
+    
+    json_dict_selected_in  = {}
+    json_dict_selected_out = {}
+    
+    json_dict_selected_in.update(json_dict)
+    json_dict_selected_out.update(json_dict)
+    
+
+    results = json_dict["results"]
+    print len(results)
+    res_in  = []
+    res_out = []
+    for (itemNum, res) in enumerate(results):
+       #note: if you don't secify a key then append result.
+       if (key=='') or (res[key] == value):
+           if prn:
+               print res['link']
+           res_in.append(res)
+       else:  #...select out...
+           res_out.append(res)
+           
+    if prn:
+        print "num of results in, out= ",len(res_in),len(res_out)
+
+
+    json_dict_selected_in['results']  = res_in
+    json_dict_selected_out['results'] = res_out
+
+    json_dict_selected_in['count']  = len(res_in)
+    json_dict_selected_out['count'] = len(res_out)
+    #Future Feature:
+    # - take in a {} for key value pairs for multiple conditions.
+    #   maybe make another function to iterate AND condition.
+    # - consider all boolean operaters AND, OR, NOT, XOR
+    # - consider implementing join json_dict
+    # - consider creating class json_dict 
+    return json_dict_selected_in, json_dict_selected_out
 
 #==============================================================================
 
 def get_filename_from_url(url):
-    """Rudamentary parsing of URL into a list and assumming last element is the filename """
+    """Rudamentary parsing of URL into a list and assumming last element is the filename.
+    Now handles extraction from url query if it exists."""
     filename = url.split('/')[-1]
+    #Sudo Code:
+    #if query_exists
+    #    get key value pairs
+    #    chk for  key="fileName" and get the filename
+    
+    if filename.find('?'):  #...checking if filename is a possible query.
+        dict = extract_info_from_url_query(filename)
+        print dict
+        if dict=={}:
+            print 'filename not found...leaving current filename unchanged'
+        else:
+            filename = dict.get('fileName') #...should consider case insensitive.
+            if filename=="": #...xxx for debugging get ride of later.
+                print filename
+    
+    
     #Futur Feature:
-    # - Check for valid filname
+    # - Check for valid filname (must match a file type)
     # - must handle this case:  and probably several more.
     #   (31536000, 'https://online.contractsfinder.businesslink.gov.uk:443/PublicFileDownloadHandler.ashx?fileName=notices_2012_05.csv&recordType=Notices&fileContent=Monthly', 'PublicFileDownloadHandler.ashx?fileName=notices_2012_05.csv&recordType=Notices&fileContent=Monthly')
     # - make functions to handle different cases like...def get_filename_from_content-disposition
     # - run on all data and handle all cases.
+    # - key names should be all lower case....to be case insensitive.
     return filename 
+#------------------------------------------------------------------------------
+
+def extract_info_from_url_query(a_str):
+    #parse above string and reture dict
+        #list = bad_filenames[0].split('fileName=')
+    dict = {}
+
+    print "-----------------------extract_info_from_url_query---------------------------------------------"
+    if a_str.find('?')!=-1:  #...maybe consider a_str.count('?') in case >1 '?'
+        print '\na_str=',a_str
+        part1,part2 = a_str.split('?')
+        
+        #example: special case a_str =
+        #   "PublicFileDownloadHandler.ashx?fileName=notices_2013_10.xml&recordType=Notices&fileContent=Monthly",
+
+        #if part1 ='PublicFileDownloadHandler.ashx':  #...only need to detect specific cases...going with generality.
+        print 'part1=',part1
+        print 'part2=',part2
+        #extract filename...
+        key_values_list = part2.split('&')
+        #extracting from strings "key=value" and creating dict 
+        for key_value in key_values_list:
+            print key_value
+            key,value = key_value.split('=')
+            dict[key]=value
+    else:
+        print a_str
+        print "? was not found ==> is not a query"
+
+    print "--------------------------------------------------------------------"
+    #Future Features:
+    # - note: can handle any "part1" string is same way for each special case.
+    # - general form part1?part2   part2="key1=value2, key2=value2, ...
+    # - part1 string could be a function arg.
+    return dict
 #------------------------------------------------------------------------------
 
 def get_file_info(link, prn=True):
@@ -164,10 +267,11 @@ def get_file_info(link, prn=True):
     Getting metadata about one file from remote servers...
     Purpose:  to get filename, filesize, URL & and http Instance info...
     """
-    FILE_SIZE_FAILED = '999999999999'  
+    #FILE_SIZE_FAILED = 999999999999  is global constant
 
     the_file = urllib2.urlopen( link )
-    #if chk_the_file  #xxx...implement later.
+    #xxx if chk_the_file  #xxx...implement later.
+    #xxx or implement try except here
     httpInstance = the_file.info()  #...can get length of file. 
 
     if prn:    
@@ -182,6 +286,7 @@ def get_file_info(link, prn=True):
         print '------------------------------------------------------------------------------'
 
     if 'Strict-Transport-Security' in httpInstance.keys():
+        #xxx Is this really the file size?...verify...
         fileSizeStr = httpInstance['Strict-Transport-Security'].split('max-age=')[1]  #xxx ...fails ofen why?
     elif 'content-length' in httpInstance.dict:
         fileSizeStr = httpInstance.dict['content-length']
@@ -239,14 +344,29 @@ def get_all_files_info(json_dict):
     """    
     results = json_dict['results']
     for i,res in enumerate(results):
-        http_dict, file_info =  get_file_info(res['link'])
-        file_size, url, filename = file_info
-        #add http_dict field
-        res['http_dict'] = http_dict
-        res['file_size'] = file_size
-        res['url'] = url
-        res['filename'] = filename
-        results[i]= res
+        try:
+            print 'i,res =', i,res  #...xxx for debugging.
+            print_dict(res)         #...xxx for debugging
+            if res.get('link')=='http://ocds.open-contracting.org/opendatacomparison/download/1/':
+                print 'xxx debug'
+            http_dict, file_info =  get_file_info(res['link'])
+            file_size, url, filename = file_info
+            #add http_dict field
+            res['http_dict'] = http_dict
+            res['file_size'] = file_size
+            res['url'] = url
+            res['filename'] = filename
+            results[i]= res
+        except Exception, e:
+            res['http_dict'] = {'exception':e, 'link': res['link']}  #...use this to list exceptions.
+            res['file_size'] = FILE_SIZE_FAILED
+            res['url'] = res['link']
+            res['filename'] = ''
+            print 'EXCEPTION OCCURED:' #...xxx for debuging
+            print 'res=', res          #...xxx for debuging
+            print_dict(res)            #...xxx for debuging, note does not work with print_json_dict()
+            results[i]= res
+        
     json_dict['results']=results
     #Future Features:
     # - caching:check if already downloaded, must include expery date check but can
@@ -255,7 +375,85 @@ def get_all_files_info(json_dict):
     return json_dict
 
 #==============================================================================
+
+def print_dict_recursive(a_dict,spaces='    '):
+    """Print dictionary recursively in readable format, 
+    handles recursive structures like lists of ditionaries. 
+    Try using this function if print_json_dict fails.
+    This function can handle non-serializable objects unlike print_json_dict"""
+    #print a_dict.keys()
+    
+    for key in a_dict.keys():
+        value = a_dict.get(key)
+
+        if type(value)==type([]):  #...i.e. is a list of dicts
+            print spaces,key,':'
+            for sub_dict in value:
+                print_dict_recursive(sub_dict, spaces+'    ')  #...recursively call. 
+                print spaces +'     '+'------------------------------------------------------'
+        elif type(value)==type({}):
+            print spaces,key,':'
+
+            print_dict_recursive(value, spaces+'    ')
+        else:
+            print spaces, key,':', a_dict.get(key)
+    return
+#------------------------------------------------------------------------------
+def print_dict(a_dict, spaces='    '):
+    """Print dictionary recursively in readable format, 
+    handles recursive structures like lists of ditionaries. 
+    This function first tries print_json_dict for a beautifully formatted ouput
+    but if it fails, a recursive algorithm takes over and attempts the printing.
+    Note:  The recurse algrithim does not care about serializing objects unlike print_json_dict"""
+    print '==================================================================='
+    try:
+        print_json_dict(a_dict)
+    except:
+        print_dict_recursive(a_dict)
+    print '==================================================================='
+    return
+#------------------------------------------------------------------------------
+
+def get_content(json_dict, key, prn=True): #...add if value contains
+    """Given the key, returns list of values from json_dict.
+    Great for debugging or just seeing all values for any given key.
+    """ 
+    results = json_dict.get('results')
+    content = []
+    for res in results:
+        value = res.get(key)
+        content.append(value)
+        if prn:
+            print key+'=',value
+    #Future Features:
+    # - may want to also return uniq content with frequencies
+    return content
+#------------------------------------------------------------------------------
+
+def flatten_result(results_dict, prn=True):
+    """To facilitate access to result info by flattening the dict data structure"""
+    dict={}
+    #dict.update(result_dict)
+    #results = json_dict.get('results')
+    #content = []
+    for key in results_dict.keys():  
+   
+        value = result_dict.get(key)
+        #if type(value)==type({}):
+            
+        #content.append(value)
+        if key!='http_dict':
+            dict.update({key:value})
+        if prn:
+            print key+'=',value
+    
+    dict.update(result_dict.get('http_dict'))
+    #Future Features:
+    return dict
+#-----------------------------------------------------------------------------    
+
 #==============================================================================
+
 def save_file(url, simulate=False):
    """Downloads and Saves one file:"""
    #Notes to self:
@@ -330,10 +528,9 @@ def save_csvs_limited_by_size(num=5, size=1000):
     return    
 #-----------------------------------------------------------------------------    
 
-
+#==============================================================================
 
 def use_cases():
-    FILE_SIZE_FAILED = '999999999999'
     simulate = True
 
     #Examples: Use cases...
@@ -368,7 +565,7 @@ def use_cases():
     print_json_dict(json_dict_augmented)
     #==========================================================================
     #Now one can search on augmented metadata...not the best use case example but...
-    links6 = get_links(json_dict_augmented, 'file_size', int(FILE_SIZE_FAILED)) #...lists all failed attemps
+    links6 = get_links(json_dict_augmented, 'file_size', FILE_SIZE_FAILED) #...lists all failed attemps
     print 'Failed to obtain, file sizes for the following links...will have to investigate...' 
     print_json_dict(links6)
     #==========================================================================
@@ -395,12 +592,91 @@ def use_cases():
     print "Finished use_cases"
     
     return
+#==============================================================================
+#def investigate_failed_attempts():
+#------------------------------------------------------------------------------
+    
+if True:   #NOTE: this takes 5-10 minutes to fetch data from internet
+
+    #json_dict_all      = get_json_dict()  #...gets all links from ocds api.
+    json_dict_500       = get_json_dict_select(500, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
+
+    json_dict_augmented = get_all_files_info(json_dict_500)  #...metadata all collected in one place.
+    #print_json_dict(json_dict_augmented)
+if True:
+    links6 = get_links(json_dict_augmented, 'file_size', FILE_SIZE_FAILED) #...lists all failed attemps
+    print 'Failed to obtain, file sizes for the following links...will have to investigate...' 
+    print_json_dict(links6)
+
+    links7 = get_links(json_dict_augmented, 'file_size', FILE_SIZE_FAILED) #...lists all failed attemps
+    print 'Failed to obtain, file sizes for the following links...will have to investigate...' 
+    print_json_dict(links6)
+
+
+    json_dict_selected_in_csvs, json_dict_selected_out_csvs = select_from_json_dict(json_dict_augmented, 'format','CSV',True)
+    json_dict_selected_in_bad, json_dict_selected_out_bad = select_from_json_dict(json_dict_augmented, 'file_size', FILE_SIZE_FAILED,True)
+    #print_dict(json_dict_selected_in_bad)
+    
+    bad_filenames = get_content(json_dict_selected_in_bad, 'filename')
+    print_json_dict( bad_filenames )
+
+    #------------------------------------------------------------------------- 
+    #Example1:  Extracting info from a url query...   
+    filename_dict = extract_info_from_url_query("PublicFileDownloadHandler.ashx?fileName=notices_2013_10.xml&recordType=Notices&fileContent=Monthly")
+    filename = filename_dict['fileName']
+    print filename
+    #Example2:  Extracting info from a url query...   
+    filename_dict = extract_info_from_url_query("search?f%5Bitem_type%5D%5B%5D=Call+for+tenders&q=everything")
+    filename = filename_dict.get('fileName')
+    print "does filename exist:", filename==None
+    #-------------------------------------------------------------------------    
+    #Example: of printing one flattened result...
+    result_dict = json_dict_selected_in_csvs.get('results')[0]
+    flat_result = flatten_result(result_dict)
+    print_dict(flat_result)
+    print_dict(flat_result.keys())
+    print_dict(flat_result.values())
+    print "==================================================================="
+    print_dict(get_content(json_dict_augmented, 'filename'))  #...all extracted filenames.
+    print "==================================================================="
+    print_dict(get_content(json_dict_selected_in_csvs, 'filename'))  #...all extracted CSV filenames.
+    #-------------------------------------------------------------------------    
+
+
+
+
+
+
+
+
+#ToDo:
+# - save limit size
+# - get filename cases:
+#       in some cases can get filename from...content-disposition : attachment; filename="notices_2012_08.csv"
+#      "rows.json?accessType=DOWNLOAD"
+#      "rows.csv?accessType=DOWNLOAD"
+#      "tpsgc-pwgsc_ao-t_n?publication_date=today",
+# - get this...
+#      res['http_dict'] = {'exception':e, 'link': res['link']}  #...use this to list exceptions.
+# - get all file types 
+    #list all filenames that don't end in a ".file_type"
+    #list all empty filenames and other info
+    #generate filenames from url and other info.
+# - done: flatten dict struct?  but not results
+# - get expiry date
+# - get superset of http fieldnames
+# - create secific function called extract_from_http_dict
+        
+
+    
 #----------------------------------------------------------------------------
 
 #Future Features:
 # - add comments regarding what this function is about.
 # - Note: the above code can be put into a class maybe called OCDS_Api
-# - unit testing? 
+# - package up some of the functions info a class called json_dict
+# - unit testing? consider later.
 #==============================================================================
 
 #use_cases()
+#testing()
