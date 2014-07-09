@@ -656,7 +656,7 @@ def use_cases():
 if False:   #NOTE: this takes 5-10 minutes to fetch data from internet
 
     #json_dict_all      = get_json_dict()  #...gets all links from ocds api.
-    json_dict_500       = get_json_dict_select(50, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
+    json_dict_500       = get_json_dict_select(500, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
 
     json_dict_augmented = get_all_files_info(json_dict_500)  #...metadata all collected in one place.
     #print_json_dict(json_dict_augmented)
@@ -812,33 +812,62 @@ print_dict(get_content(dict_in,'file_size'))
 links = get_links(dict_in)
 #print_dict(links)
 
-
-def save_limited_by_size(json_dict, num=5, size=5000000, key='format',value='CSV',simulate=False):
+#--------------------------------------------------------------------------------------------------------
+def save_limited_by_size(json_dict, samples=5, size=5000000, key='format',value='CSV',simulate=False):
     """This function can select for file size in bytes and file format. Consider simulating the 
     download and check if you have enough disk space in your current directory.  Note in simulation
     mode files will be created with zero bytes.  Make sure to save your data in case files get over written
-    note num=5 is not implemented yet. For now one can select a size to limit the number of files
-    downloaded. """
+    note samples=5 is now implemented. """
     #Sudo Code:
-    # 1)  search json_dict for file sizes < x
-    dict_in, dict_out = select_json_dict(json_dict) #...by default select for CSV files
+    # 1)  select results for key values, with comparison function res_value_contains 
+    # 2)  select again for file sizes < x
+    # 3)  take top samples
+    # 4)  attempt saving results
+    # 5)  print number of 
+    dict_in, dict_out = select_json_dict(json_dict, res_value_contains, key, value) #...first selection by key with "result contains value"
     print_dict(get_content(dict_in,'filename'), 'filename')
 
-    dict_in, dict_out = select_json_dict(json_dict_augmented,res_lt,'file_size',size) #...by default select for CSV files
+    dict_in, dict_out = select_json_dict(dict_in, res_lt, 'file_size', size) #...by default select for CSV files
     print_dict(get_content(dict_in,'file_size'))
     
     links = get_links(dict_in)
     
-    save_files(links, simulate)
+    if len(links) > samples:
+        links = links[:samples]
     
-    print 'Number files attempted for download', len(links)
+    save_files(links, simulate)
+
+    print '\n\n\n'
+    print '********************** SUMMARY *************************************'
+    print 'Attempted to save the top '+ str(samples), 'samples...',len(links),'found.'
+    print 'Selection criteria:'
+    print '    samples  = '+str(samples), 'max number of samples'
+    print '    size     = '+str(size),'limit in bytes'
+    print '    key      = '+str(key) 
+    print '    value    = '+str(value)
+    print '    simulate = ',simulate
+    print '--------------------------------------------------------------------'
+    get_content(dict_in,'filename')
+    print '********************************************************************'
+    #print '       Attempted to download the following links'
+    #print_dict(links)
+    print 'Number files attempted for download top', len(links),'samples.'
+    print 'Check your current directory for the any successfully downloaded files.'
+    print 'Sort your directory by modified time to see which files have been recently downloaded.'
+    print '*******************************************************************'
 
     #Future Features:
     # - implement num=5 to save only 5 files by default
     return    
+#--------------------------------------------------------------------------------------------------------
+#Example: use cases,  
+print '*** Warning file get overwriten in current directory even in simulation mode ***'
+print 'It is unlikely that the filenames being download will have the same name as your files'
+print 'but better safe then sorry'
+#save_limited_by_size(json_dict_augmented, 10, 5000000, 'format','CSV',True) #...simulating download, overwrites with zero bytes.
+#save_limited_by_size(json_dict_augmented, 10, 7000000, 'format','CSV',False) #...attempt download 10 csv files, < 7000000 bytes 
+save_limited_by_size(json_dict_augmented)  #...by default attempt download 5 csv files < 5000000 bytes.
 
-save_limited_by_size(json_dict_augmented, 5, 5000000, 'format','CSV',True) #...simulating download
-save_limited_by_size(json_dict_augmented)  #...by default download all csv files < 5000000 bytes.
 
 
 
