@@ -137,7 +137,7 @@ def get_links(json_dict, key='', value='',prn=True): #, key='format', value='CSV
     print len(results)
     links = []
     for (itemNum, item) in enumerate(results):
-       print type(value),value, type(item[key]), item[key]  #...make sure both are same type.
+       #print type(value),value, type(item[key]), item[key]  #...make sure both are same type.
        if (key=='') or (item[key] == value):
            if prn:
                print item['link']
@@ -194,6 +194,52 @@ def select_from_json_dict(json_dict, key='',value='',prn=True):
     # - consider implementing join json_dict
     # - consider creating class json_dict 
     return json_dict_selected_in, json_dict_selected_out
+
+def select_json_dict(json_dict, cmp_func, key='',value='', prn=True):
+    """Splits json_dict into two json_dicts by selecting in and out for the
+    specified matching key:value pairs.  Note: key='' means return all results."""
+    
+    json_dict_selected_in  = {}
+    json_dict_selected_out = {}
+    
+    json_dict_selected_in.update(json_dict)
+    json_dict_selected_out.update(json_dict)
+    
+
+    results = json_dict["results"]
+    print len(results)
+    res_in  = []
+    res_out = []
+    for (itemNum, res) in enumerate(results):
+       #note: if you don't secify a key then append result.
+       if (key==''): #xxxxxx or cmp_func(                   #(res[key] == value):
+           if prn:
+               print res['link']
+           res_in.append(res)
+       else:  #...select out...
+           res_out.append(res)
+           
+    if prn:
+        print "num of results in, out= ",len(res_in),len(res_out)
+
+
+    json_dict_selected_in['results']  = res_in
+    json_dict_selected_out['results'] = res_out
+
+    json_dict_selected_in['count']  = len(res_in)
+    json_dict_selected_out['count'] = len(res_out)
+    #Future Feature:
+    # - take in a {} for key value pairs for multiple conditions.
+    #   maybe make another function to iterate AND condition.
+    # - consider all boolean operaters AND, OR, NOT, XOR
+    # - consider implementing join json_dict
+    # - consider creating class json_dict 
+    return json_dict_selected_in, json_dict_selected_out
+
+#def less_then
+#def select(less_then, results):
+    
+
 
 #==============================================================================
 
@@ -262,7 +308,7 @@ def extract_info_from_url_query(a_str):
     return dict
 #------------------------------------------------------------------------------
 
-def get_file_info(link, prn=True):
+def get_file_info(link, prn=False):
     """Returns useful info regarding file to download i.e. Metadata
     Getting metadata about one file from remote servers...
     Purpose:  to get filename, filesize, URL & and http Instance info...
@@ -466,6 +512,7 @@ def save_file(url, simulate=False):
    file_info_dict,(file_size, url_redirect, file_name ) = get_file_info(url,False)
    
    #Download file in any format..
+   print file_name
    with open(file_name,'wb') as f:
        print "----------------------------------------------------------------------------------------"
        print "From: Django url......:", url
@@ -498,7 +545,10 @@ def save_file(url, simulate=False):
 def save_files(links, simulate=False):
     """Downloads and saves files to local drive at current directory."""
     for link in links:
-        save_file(link, simulate)
+        try:
+            save_file(link, simulate)
+        except:
+            print "Error: failed to save file from:",link
     #Future Features:
     # - add path to local drive
     # - maybe rename to download_files
@@ -520,13 +570,20 @@ def save_csvs_by_dataset(value="Contracts Finder - All Notices",num=5, simulate=
     return 
 #-----------------------------------------------------------------------------    
 
-def save_csvs_limited_by_size(num=5, size=1000):
+def save_csvs_limited_by_size(json_dict, num=5, size=1000):
     """Will implement next, similar to save_csvs_by_dataset"""
-    pass
+    #Sudo Code:
+    # 1)  search json_dict for file sizes < x
+    
+    save_files(links, simulate=False)
+
     #Future Features:
     # - get some rest frist.
     return    
 #-----------------------------------------------------------------------------    
+
+
+
 
 #==============================================================================
 
@@ -596,10 +653,10 @@ def use_cases():
 #def investigate_failed_attempts():
 #------------------------------------------------------------------------------
     
-if True:   #NOTE: this takes 5-10 minutes to fetch data from internet
+if False:   #NOTE: this takes 5-10 minutes to fetch data from internet
 
     #json_dict_all      = get_json_dict()  #...gets all links from ocds api.
-    json_dict_500       = get_json_dict_select(500, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
+    json_dict_500       = get_json_dict_select(50, 'http://ocds.open-contracting.org/opendatacomparison/api/links?')
 
     json_dict_augmented = get_all_files_info(json_dict_500)  #...metadata all collected in one place.
     #print_json_dict(json_dict_augmented)
@@ -642,13 +699,150 @@ if True:
     print_dict(get_content(json_dict_selected_in_csvs, 'filename'))  #...all extracted CSV filenames.
     #-------------------------------------------------------------------------    
 
+#==============================================================================
+# functions that can be used in select:
+def res_lt(res, key, value):   
+    """result info, based on key, is "less then" value"""
+    return res.get(key) < value
+def res_gt(res, key, value):
+    """result info, based on key, is "greater then" value"""
+    return res.get(key) > value
+def res_eq(res, key, value):
+    """result info, based on key, is "equal to" value"""
+    return res.get(key) == value
+def res_gte(res, key, value):
+    """result info, based on key, is "greater or equal" then value"""
+    return res.get(key) >= value
+def res_lte(res, key, value):
+    """result info, based on key, is "less or equal" to value"""
+    return res.get(key) <= value
+
+def res_value_contains(res, key, value):
+    """result info, based on key, contains the string in value,
+    case insensitive."""
+    try:
+        ans = res.get(key).lower().find(value.lower())!=-1
+    except: 
+        ans = False
+    return ans
+#Create more comparison functions here if need be...
+#
+#Future Features:
+# - consider variable length selection of boolean operators    
+#------------------------------------------------------------------------------
+
+def select( F, key, value, results):
+    """select catagories the results base on some function F.
+    F must return a boolean."""
+    res_in = []  #....results included
+    res_out = [] #....results excluded
+    for res in results:
+        if F(res,key,value):
+            res_in.append(res)
+        else:
+            res_out.append(res)
+    return res_in, res_out
+#------------------------------------------------------------------------------
+# Testing: select
+results = json_dict_selected_in_csvs.get('results')   
+
+size_bytes = 20000000
+res_in, res_out = select(res_gt,'file_size',size_bytes,results)
+print 'num of results =', len(results)
+print 'num of results  < '+str(size_bytes)+' bytes is', len(res_in)
+print 'num of results >= '+str(size_bytes)+' bytes is', len(res_out)
+
+res_in, res_out = select(res_value_contains, 'filename','notice', results )
+print len(res_in)
+print len(res_out)
+
+#------------------------------------------------------------------------------
+
+def select_json_dict( json_dict,F=res_value_contains, key='format',value='CSV',prn=True):
+    """Splits json_dict into two json_dicts by selecting in and out for the
+    specified matching key:value pairs.  This function is can be provided a comprison function
+    to select the results.  See section "functions that can be used in select:" of this module.
+    By default "F=res_value_contains" comparison function 
+    means that json_dict contains the value for the given key (case insensitive).
+    If "F=res_eq" where used instead, the values must be equal."""
+    
+    json_dict_selected_in  = {}
+    json_dict_selected_out = {}
+    
+    json_dict_selected_in.update(json_dict)
+    json_dict_selected_out.update(json_dict)
+    
+
+    results = json_dict["results"]
+    print len(results)
+    
+    res_in, res_out = select( F, key, value, results )    
+    
+    if prn:
+        print "num of results in, out= ",len(res_in),len(res_out)
+
+    json_dict_selected_in['results']  = res_in
+    json_dict_selected_out['results'] = res_out
+
+    json_dict_selected_in['count']  = len(res_in)
+    json_dict_selected_out['count'] = len(res_out)
+    #Future Feature:
+    # - take in a {} for key value pairs for multiple conditions.
+    #   maybe make another function to iterate AND condition.
+    # - consider all boolean operaters AND, OR, NOT, XOR
+    # - consider implementing join json_dict
+    # - consider creating class json_dict 
+    # - consider results can be flattened before select is called.
+    return json_dict_selected_in, json_dict_selected_out
+
+#------------------------------------------------------------------------------
+
+
+#Example: of using get_content to get all filename values in a json_dict
+print_dict(get_content(json_dict_selected_in_csvs, 'filename'))  #...all extracted CSV filenames.
+
+#Example:  of selecting all csv files...
+dict_in, dict_out = select_json_dict(json_dict_augmented) #...by default select for CSV files
+print_dict(get_content(dict_in,'filename'), 'filename')
+
+#Example:  of selecting all files of size < limit in bytes...
+dict_in, dict_out = select_json_dict(json_dict_augmented,res_lt,'file_size',15000000) #...by default select for CSV files
+print_dict(get_content(dict_in,'file_size'))
+
+links = get_links(dict_in)
+#print_dict(links)
+
+
+def save_limited_by_size(json_dict, num=5, size=5000000, key='format',value='CSV',simulate=False):
+    """This function can select for file size in bytes and file format. Consider simulating the 
+    download and check if you have enough disk space in your current directory.  Note in simulation
+    mode files will be created with zero bytes.  Make sure to save your data in case files get over written
+    note num=5 is not implemented yet. For now one can select a size to limit the number of files
+    downloaded. """
+    #Sudo Code:
+    # 1)  search json_dict for file sizes < x
+    dict_in, dict_out = select_json_dict(json_dict) #...by default select for CSV files
+    print_dict(get_content(dict_in,'filename'), 'filename')
+
+    dict_in, dict_out = select_json_dict(json_dict_augmented,res_lt,'file_size',size) #...by default select for CSV files
+    print_dict(get_content(dict_in,'file_size'))
+    
+    links = get_links(dict_in)
+    
+    save_files(links, simulate)
+    
+    print 'Number files attempted for download', len(links)
+
+    #Future Features:
+    # - implement num=5 to save only 5 files by default
+    return    
+
+save_limited_by_size(json_dict_augmented, 5, 5000000, 'format','CSV',True) #...simulating download
+save_limited_by_size(json_dict_augmented)  #...by default download all csv files < 5000000 bytes.
 
 
 
-
-
-
-
+#print_dict(dict_in)
 #ToDo:
 # - save limit size
 # - get filename cases:
